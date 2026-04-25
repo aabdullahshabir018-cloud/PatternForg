@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pattern Forge — Animated Pattern Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root{--bg:#0a0a0f;--fg:#f0ede8;--muted:#6e6e80;--accent:#ff6b35;--accent2:#ffd93d;--card:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08);--panel-bg:rgba(12,12,18,0.88)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:'DM Sans',sans-serif;overflow:hidden;width:100vw;height:100vh}
+canvas#cv{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+
+/* Panel toggle */
+#panelToggle{position:fixed;top:20px;right:20px;z-index:100;width:44px;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--panel-bg);backdrop-filter:blur(16px);color:var(--fg);font-size:1rem;cursor:pointer;display:none;align-items:center;justify-content:center;transition:all .25s}
+#panelToggle:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Panel */
+#panel{position:fixed;top:0;right:0;z-index:50;width:290px;height:100vh;background:var(--panel-bg);backdrop-filter:blur(24px);border-left:1px solid var(--border);overflow-y:auto;overflow-x:hidden;padding:28px 22px 40px;display:flex;flex-direction:column;gap:20px;transition:transform .35s cubic-bezier(.4,0,.2,1)}
+#panel.hidden{transform:translateX(100%)}
+#panel::-webkit-scrollbar{width:4px}
+#panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+
+.panel-header h2{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.35rem;letter-spacing:-.02em}
+.panel-header .tagline{font-size:.72rem;color:var(--muted);margin-top:3px;letter-spacing:.04em}
+
+#generateBtn{width:100%;padding:14px 20px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--accent),#e05520);color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .25s;box-shadow:0 4px 24px rgba(255,107,53,.3)}
+#generateBtn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,53,.45)}
+#generateBtn:active{transform:translateY(0) scale(.97)}
+#generateBtn i{transition:transform .4s}
+#generateBtn.spinning i{transform:rotate(360deg)}
+
+.pattern-name{font-size:.75rem;color:var(--accent2);text-align:center;padding:8px 12px;background:rgba(255,217,61,.06);border:1px solid rgba(255,217,61,.12);border-radius:8px;min-height:36px;display:flex;align-items:center;justify-content:center;font-weight:500;letter-spacing:.02em}
+
+.control-section{display:flex;flex-direction:column;gap:10px}
+.control-section h3{font-family:'Space Grotesk',sans-serif;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+
+.control-row{display:flex;align-items:center;gap:8px}
+.control-row label{font-size:.78rem;color:var(--muted);min-width:58px;flex-shrink:0}
+.control-row .val{font-size:.72rem;color:var(--accent);font-weight:500;min-width:32px;text-align:right;flex-shrink:0}
+
+input[type="range"]{-webkit-appearance:none;appearance:none;flex:1;height:4px;background:var(--border);border-radius:2px;outline:none;cursor:pointer}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent);border-radius:50%;cursor:pointer;box-shadow:0 0 8px rgba(255,107,53,.4)}
+input[type="range"]::-moz-range-thumb{width:14px;height:14px;background:var(--accent);border-radius:50%;border:none;cursor:pointer}
+input[type="range"]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
+
+/* Palette row */
+.palette-row{display:flex;flex-wrap:wrap;gap:6px}
+.palette-swatch{width:100%;height:28px;border-radius:8px;border:2px solid transparent;cursor:pointer;transition:all .2s;overflow:hidden;display:flex}
+.palette-swatch:hover{transform:scale(1.04)}
+.palette-swatch.active{border-color:var(--fg);box-shadow:0 0 12px rgba(255,255,255,.12)}
+.palette-swatch span{flex:1;display:block}
+
+/* Shape row */
+.shape-row{display:flex;flex-wrap:wrap;gap:5px}
+.shape-btn{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.72rem;cursor:pointer;transition:all .2s}
+.shape-btn:hover{border-color:rgba(255,255,255,.2);color:var(--fg)}
+.shape-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(255,107,53,.08)}
+
+/* Toggles */
+.toggle-row{display:flex;flex-direction:column;gap:8px}
+.toggle-label{display:flex;align-items:center;gap:10px;font-size:.8rem;color:var(--muted);cursor:pointer;user-select:none}
+.toggle-label input{display:none}
+.toggle-switch{width:36px;height:20px;border-radius:10px;background:rgba(255,255,255,.08);position:relative;transition:background .25s;flex-shrink:0}
+.toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:all .25s}
+.toggle-label input:checked+.toggle-switch{background:rgba(255,107,53,.3)}
+.toggle-label input:checked+.toggle-switch::after{left:18px;background:var(--accent)}
+.toggle-label:has(input:focus-visible) .toggle-switch{outline:2px solid var(--accent);outline-offset:2px}
+
+.actions{display:flex;gap:8px}
+.actions button{flex:1;padding:9px 8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s}
+.actions button:hover{border-color:var(--accent);color:var(--accent)}
+
+.hint{font-size:.68rem;color:rgba(110,110,128,.5);text-align:center;line-height:1.5}
+.hint i{margin-right:3px}
+
+/* Toast */
+#toastContainer{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{background:var(--panel-bg);backdrop-filter:blur(16px);border:1px solid var(--border);border-left:3px solid var(--accent);color:var(--fg);padding:10px 20px;border-radius:10px;font-size:.8rem;opacity:0;transform:translateY(-12px);animation:toastIn .3s ease forwards}
+.toast.out{animation:toastOut .3s ease forwards}
+@keyframes toastIn{to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-12px)}}
+
+/* Responsive */
+@media(max-width:720px){
+    #panel{width:270px}
+    #panelToggle{display:flex}
+    #panel.hidden{transform:translateX(100%)}
+}
+@media(min-width:721px){
+    #panel.hidden{transform:translateX(0)!important}
+}
+@media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<button id="panelToggle" aria-label="Toggle controls panel"><i class="fas fa-sliders-h"></i></button>
+
+<aside id="panel" role="complementary" aria-label="Pattern controls">
+    <div class="panel-header">
+        <h2>Pattern Forge</h2>
+        <p class="tagline">Generate unique animated patterns</p>
+    </div>
+
+    <button id="generateBtn" aria-label="Generate new pattern">
+        <i class="fas fa-dice"></i> Generate New Pattern
+    </button>
+
+    <div id="patternName" class="pattern-name" aria-live="polite">Press generate to begin</div>
+
+    <section class="control-section">
+        <h3>Animation</h3>
+        <div class="control-row">
+            <label for="speedSlider">Speed</label>
+            <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1">
+            <span class="val" id="speedVal">1.0x</span>
+        </div>
+        <div class="control-row">
+            <label for="trailSlider">Trail</label>
+            <input type="range" id="trailSlider" min="0.01" max="0.6" step="0.01" value="0.06">
+            <span class="val" id="trailVal">0.06</span>
+        </div>
+        <div class="control-row">
+            <label for="sizeSlider">Size</label>
+            <input type="range" id="sizeSlider" min="1" max="14" step="0.5" value="4">
+            <span class="val" id="sizeVal">4.0</span>
+        </div>
+    </section>
+
+    <section class="control-section">
+        <h3>Density</h3>
+        <div class="control-row">
+            <label for="densitySlider">Particles</label>
+            <input type="range" id="densitySlider" min="20" max="500" step="10" value="160">
+            <span class="val" id="densityVal">160</span>
+        </div>
+    </section>
+
+    <section class="control-section">
+        <h3>Color Palette</h3>
+        <div id="paletteContainer" class="palette-row"></div>
+    </section>
+
+    <section class="control-section">
+        <h3>Shape</h3>
+        <div id="shapeContainer" class="shape-row"></div>
+    </section>
+
+    <section class="control-section">
+        <h3>Effects</h3>
+        <div class="toggle-row">
+            <label class="toggle-label"><input type="checkbox" id="waveToggle"><span class="toggle-switch"></span>Flowing Waves</label>
+            <label class="toggle-label"><input type="checkbox" id="kaleidoToggle"><span class="toggle-switch"></span>Kaleidoscope</label>
+            <label class="toggle-label"><input type="checkbox" id="connectToggle"><span class="toggle-switch"></span>Connections</label>
+        </div>
+        <div class="control-row" id="symmetryRow" style="display:none;margin-top:6px">
+            <label for="symmetrySlider">Folds</label>
+            <input type="range" id="symmetrySlider" min="3" max="12" step="1" value="6">
+            <span class="val" id="symmetryVal">6</span>
+        </div>
+    </section>
+
+    <section class="control-section actions">
+        <button id="screenshotBtn" aria-label="Save screenshot"><i class="fas fa-camera"></i> Save</button>
+        <button id="fullscreenBtn" aria-label="Toggle fullscreen"><i class="fas fa-expand"></i> Full</button>
+    </section>
+
+    <p class="hint"><i class="fas fa-mouse-pointer"></i> Move cursor to interact with particles</p>
+</aside>
+
+<div id="toastContainer"></div>
+
+<script>
+/* =============================================
+   Pattern Forge — Animated Pattern Generator
+   ============================================= */
+
+// ---- Color Palettes ----
+const palettes = [
+    { name:'Ember',    colors:['#FF6B35','#FF8C42','#FFD93D','#E84855','#FFF275'] },
+    { name:'Forest',   colors:['#00E896','#2ECC71','#1ABC9C','#A8E6CF','#B8F0D8'] },
+    { name:'Sunset',   colors:['#FF6B6B','#FFA07A','#FFD93D','#FF8ED4','#FFE66D'] },
+    { name:'Neon',     colors:['#39FF14','#00FFAA','#FF073A','#FF61D2','#FFFFAA'] },
+    { name:'Lava',     colors:['#FF4500','#FF6347','#FF7F50','#FFA500','#FFD700'] },
+    { name:'Candy',    colors:['#FF69B4','#98FB98','#FFD700','#FFA07A','#DDA0DD'] },
+    { name:'Gold',     colors:['#FFD700','#DAA520','#F0E68C','#BDB76B','#EEE8AA'] },
+    { name:'Mint',     colors:['#00FA9A','#7FFFD4','#AFEEEE','#98FB98','#E0FFF0'] }
+];
+
+// ---- Shape Types ----
+const shapeTypes = ['circle','triangle','square','star','hexagon','diamond'];
+const movementTypes = ['orbit','swarm','drift','spiral','bounce','flow'];
+const movementLabels = {orbit:'Orbiting',swarm:'Swarming',drift:'Drifting',spiral:'Spiraling',bounce:'Bouncing',flow:'Flowing'};
+
+// ---- State ----
+let canvas, ctx, W, H;
+let particles = [];
+let flashes = [];
+let config = {};
+let mouse = { x: -9999, y: -9999 };
+let time = 0;
+let animId = null;
+let densityTimeout = null;
+
+// ---- Utility ----
+function hexToRgba(hex, a) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+}
+
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Simple hash noise for flow fields
+function hashNoise(x, y) {
+    const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+}
+function smoothNoise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    return (hashNoise(ix,iy)*(1-sx) + hashNoise(ix+1,iy)*sx) * (1-sy) +
+           (hashNoise(ix,iy+1)*(1-sx) + hashNoise(ix+1,iy+1)*sx) * sy;
+}
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast'; t.textContent = msg;
+    document.getElementById('toastContainer').appendChild(t);
+    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 2200);
+}
+
+// ---- Shape Drawing ----
+function drawShape(x, y, size, shape, color, angle) {
+    const s = Math.max(0.5, size);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    switch (shape) {
+        case 'circle':
+            ctx.arc(0, 0, s, 0, Math.PI * 2);
+            break;
+        case 'triangle':
+            for (let i = 0; i < 3; i++) {
+                const a = (Math.PI * 2 / 3) * i - Math.PI / 2;
+                ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
+            }
+            ctx.closePath();
+            break;
+        case 'square':
+            ctx.rect(-s * 0.8, -s * 0.8, s * 1.6, s * 1.6);
+            break;
+        case 'star':
+            for (let i = 0; i < 10; i++) {
+                const a = (Math.PI * 2 / 10) * i - Math.PI / 2;
+                const r = i % 2 === 0 ? s : s * 0.4;
+                ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+            }
+            ctx.closePath();
+            break;
+        case 'hexagon':
+            for (let i = 0; i < 6; i++) {
+                const a = (Math.PI * 2 / 6) * i;
+                ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
+            }
+            ctx.closePath();
+            break;
+        case 'diamond':
+            ctx.moveTo(0, -s);
+            ctx.lineTo(s * 0.55, 0);
+            ctx.lineTo(0, s);
+            ctx.lineTo(-s * 0.55, 0);
+            ctx.closePath();
+            break;
+    }
+    ctx.fill();
+    ctx.restore();
+}
+
+// ---- Particle Creation ----
+function createParticle() {
+    const cx = W / 2, cy = H / 2;
+    const color = pick(config.colors);
+    const sizeVar = config.baseSize * 0.5;
+    const p = {
+        x: cx, y: cy, vx: 0, vy: 0,
+        size: Math.max(1, config.baseSize + rand(-sizeVar, sizeVar)),
+        color: color,
+        shape: config.shape,
+        rot: rand(0, Math.PI * 2),
+        rotSpd: rand(-3, 3),
+        phase: rand(0, Math.PI * 2),
+        // Orbit
+        angle: rand(0, Math.PI * 2),
+        orbitSpd: rand(0.2, 0.8) * (Math.random() < 0.5 ? 1 : -1),
+        orbitR: rand(40, Math.min(W, H) * 0.42),
+        // Spiral
+        spiralA: rand(0, Math.PI * 2),
+        spiralSpd: rand(0.4, 1.2) * (Math.random() < 0.5 ? 1 : -1),
+        spiralR: rand(0, Math.max(W, H) * 0.5),
+        spiralGrow: rand(12, 40),
+    };
+    // Set initial position based on movement
+    switch (config.movement) {
+        case 'orbit':
+            p.x = cx + Math.cos(p.angle) * p.orbitR;
+            p.y = cy + Math.sin(p.angle) * p.orbitR * 0.65;
+            break;
+        case 'swarm':
+            p.x = cx + rand(-180, 180);
+            p.y = cy + rand(-180, 180);
+            p.vx = rand(-3, 3); p.vy = rand(-3, 3);
+            break;
+        case 'drift':
+            p.x = rand(0, W); p.y = rand(0, H);
+            p.vx = rand(-1.2, 1.2); p.vy = rand(-1.2, 1.2);
+            break;
+        case 'spiral':
+            p.x = cx + Math.cos(p.spiralA) * p.spiralR;
+            p.y = cy + Math.sin(p.spiralA) * p.spiralR;
+            break;
+        case 'bounce':
+            p.x = rand(50, W - 50); p.y = rand(50, H * 0.5);
+            p.vx = rand(-5, 5); p.vy = rand(-3, 3);
+            break;
+        case 'flow':
+            p.x = rand(0, W); p.y = rand(0, H);
+            break;
+    }
+    return p;
+}
+
+function createParticles() {
+    particles = [];
+    for (let i = 0; i < config.particleCount; i++) {
+        particles.push(createParticle());
+    }
+}
+
+// ---- Particle Update ----
+function updateParticle(p, dt) {
+    const cx = W / 2, cy = H / 2;
+    const spd = config.speed;
+    switch (config.movement) {
+        case 'orbit':
+            p.angle += p.orbitSpd * spd * dt;
+            p.x = cx + Math.cos(p.angle) * p.orbitR;
+            p.y = cy + Math.sin(p.angle) * p.orbitR * 0.65 + Math.sin(time * 0.8 + p.phase) * 12;
+            p.rot += p.rotSpd * dt;
+            break;
+        case 'swarm':
+            p.vx += (mouse.x - p.x) * 0.003 * spd + rand(-0.8, 0.8) * spd;
+            p.vy += (mouse.y - p.y) * 0.003 * spd + rand(-0.8, 0.8) * spd;
+            p.vx *= 0.96; p.vy *= 0.96;
+            p.x += p.vx * dt * 60; p.y += p.vy * dt * 60;
+            p.rot += p.rotSpd * dt;
+            break;
+        case 'drift':
+            p.x += p.vx * spd * dt * 60;
+            p.y += p.vy * spd * dt * 60;
+            if (p.x < -30) p.x += W + 60;
+            if (p.x > W + 30) p.x -= W + 60;
+            if (p.y < -30) p.y += H + 60;
+            if (p.y > H + 30) p.y -= H + 60;
+            p.rot += p.rotSpd * dt;
+            break;
+        case 'spiral':
+            p.spiralA += p.spiralSpd * spd * dt;
+            p.spiralR += p.spiralGrow * spd * dt;
+            if (p.spiralR > Math.max(W, H) * 0.6) {
+                p.spiralR = 0;
+                p.spiralA = rand(0, Math.PI * 2);
+            }
+            p.x = cx + Math.cos(p.spiralA) * p.spiralR;
+            p.y = cy + Math.sin(p.spiralA) * p.spiralR;
+            p.rot += p.rotSpd * dt;
+            break;
+        case 'bounce':
+            p.vy += 300 * dt * spd;
+            p.x += p.vx * spd * dt * 60;
+            p.y += p.vy * spd * dt * 60;
+            if (p.x < p.size) { p.vx = Math.abs(p.vx) * 0.88; p.x = p.size; }
+            if (p.x > W - p.size) { p.vx = -Math.abs(p.vx) * 0.88; p.x = W - p.size; }
+            if (p.y > H - p.size) { p.vy = -Math.abs(p.vy) * 0.82; p.y = H - p.size; }
+            if (p.y < p.size) { p.vy = Math.abs(p.vy) * 0.85; p.y = p.size; }
+            p.rot += p.rotSpd * dt;
+            break;
+        case 'flow': {
+            const nx = smoothNoise(p.x * 0.003, p.y * 0.003 + time * 0.15);
+            const ny = smoothNoise(p.x * 0.003 + 97, p.y * 0.003 + time * 0.15 + 97);
+            const a = nx * Math.PI * 4;
+            p.vx = Math.cos(a) * 1.8 * spd;
+            p.vy = Math.sin(a) * 1.8 * spd;
+            p.x += p.vx * dt * 60; p.y += p.vy * dt * 60;
+            if (p.x < -30) p.x += W + 60;
+            if (p.x > W + 30) p.x -= W + 60;
+            if (p.y < -30) p.y += H + 60;
+            if (p.y > H + 30) p.y -= H + 60;
+            p.rot += p.rotSpd * dt;
+            break;
+        }
+    }
+    // Subtle mouse repulsion (except swarm which uses attraction)
+    if (config.movement !== 'swarm') {
+        const dx = p.x - mouse.x, dy = p.y - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 130 && dist > 0.1) {
+            const force = (130 - dist) / 130 * 0.6;
+            p.x += (dx / dist) * force;
+            p.y += (dy / dist) * force;
+        }
+    }
+}
+
+// ---- Drawing Layers ----
+
+// Background gradient
+function drawBg() {
+    const g = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, '#12121a');
+    g.addColorStop(1, '#0a0a0f');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+}
+
+// Vignette overlay
+function drawVignette() {
+    const g = ctx.createRadialGradient(W/2, H/2, H * 0.25, W/2, H/2, Math.max(W, H) * 0.75);
+    g.addColorStop(0, 'rgba(10,10,15,0)');
+    g.addColorStop(1, 'rgba(10,10,15,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+}
+
+// Wave layer
+function drawWaves() {
+    const numW = 7;
+    const gap = H / (numW + 1);
+    for (let w = 0; w < numW; w++) {
+        const yBase = gap * (w + 1);
+        const col = config.colors[w % config.colors.length];
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 3) {
+            const f1 = 0.004 + w * 0.0008;
+            const f2 = 0.002 + w * 0.0004;
+            const amp = 18 + w * 6;
+            const y = yBase
+                + Math.sin(x * f1 + time * config.speed + w * 0.9) * amp
+                + Math.sin(x * f2 + time * config.speed * 0.6 + w * 1.3) * amp * 0.5
+                + Math.cos(x * 0.007 + time * config.speed * 1.1) * amp * 0.25;
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = hexToRgba(col, 0.18);
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        // Subtle fill below wave
+        ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+        ctx.fillStyle = hexToRgba(col, 0.015);
+        ctx.fill();
+    }
+}
+
+// Connection lines between nearby particles
+function drawConnections() {
+    if (particles.length > 250) return; // Performance guard
+    const maxDist = 100;
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const d = dx * dx + dy * dy;
+            if (d < maxDist * maxDist) {
+                const alpha = (1 - Math.sqrt(d) / maxDist) * 0.25;
+                ctx.strokeStyle = hexToRgba(particles[i].color, alpha);
+                ctx.beginPath();
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+// Draw a single particle with glow
+function drawSingleParticle(p) {
+    // Glow layer
+    ctx.globalAlpha = 0.12;
+    drawShape(p.x, p.y, p.size * 2.2, p.shape, p.color, p.rot);
+    // Core
+    ctx.globalAlpha = 0.9;
+    drawShape(p.x, p.y, p.size, p.shape, p.color, p.rot);
+    ctx.globalAlpha = 1;
+}
+
+// Draw particles with optional kaleidoscope
+function drawParticles() {
+    if (config.kaleidoscope) {
+        const cx = W / 2, cy = H / 2;
+        const sym = config.symmetry;
+        const segAngle = (Math.PI * 2) / sym;
+        for (const p of particles) {
+            const dx = p.x - cx, dy = p.y - cy;
+            for (let i = 0; i < sym; i++) {
+                const a = segAngle * i;
+                const cos = Math.cos(a), sin = Math.sin(a);
+                // Normal rotation
+                const nx = dx * cos - dy * sin + cx;
+                const ny = dx * sin + dy * cos + cy;
+                ctx.globalAlpha = 0.12;
+                drawShape(nx, ny, p.size * 2, p.shape, p.color, p.rot + a);
+                ctx.globalAlpha = 0.85;
+                drawShape(nx, ny, p.size, p.shape, p.color, p.rot + a);
+                // Mirror reflection
+                const mx = dx * cos + dy * sin + cx;
+                const my = -dx * sin + dy * cos + cy;
+                ctx.globalAlpha = 0.1;
+                drawShape(mx, my, p.size * 2, p.shape, p.color, -p.rot + a);
+                ctx.globalAlpha = 0.75;
+                drawShape(mx, my, p.size, p.shape, p.color, -p.rot + a);
+            }
+        }
+        ctx.globalAlpha = 1;
+    } else {
+        for (const p of particles) {
+            drawSingleParticle(p);
+        }
+    }
+}
+
+// Flash effects on generate
+function addFlash(x, y) {
+    flashes.push({ x, y, radius: 0, alpha: 0.6, maxR: Math.max(W, H) * 0.5, color: pick(config.colors) });
+}
+function updateAndDrawFlashes(dt) {
+    for (let i = flashes.length - 1; i >= 0; i--) {
+        const f = flashes[i];
+        f.radius += 500 * dt;
+        f.alpha -= 1.2 * dt;
+        if (f.alpha <= 0) { flashes.splice(i, 1); continue; }
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, Math.max(1, f.radius), 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(f.color, f.alpha);
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+    }
+}
+
+// ---- Pattern Name ----
+function getPatternName() {
+    let name = movementLabels[config.movement] + ' ' + config.shape.charAt(0).toUpperCase() + config.shape.slice(1) + 's';
+    const extras = [];
+    if (config.waves) extras.push('Waves');
+    if (config.kaleidoscope) extras.push(config.symmetry + '-fold Mirror');
+    if (config.connections) extras.push('Links');
+    if (extras.length) name += ' + ' + extras.join(', ');
+    return name;
+}
+
+// ---- Main Loop ----
+function animate(ts) {
+    animId = requestAnimationFrame(animate);
+    const dt = Math.min(0.05, 1 / 60); // Cap delta for tab-switching
+    time += dt;
+
+    // Trail: semi-transparent overlay instead of full clear
+    ctx.fillStyle = `rgba(10,10,15,${config.trail})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // Redraw background subtly every ~2 seconds to prevent color accumulation
+    if (Math.floor(time * 0.5) % 2 === 0 && time % 2 < dt) {
+        drawBg();
+    }
+
+    // Update particles
+    for (const p of particles) updateParticle(p, dt);
+
+    // Draw layers in order
+    if (config.waves) drawWaves();
+    drawParticles();
+    if (config.connections && !config.kaleidoscope) drawConnections();
+    updateAndDrawFlashes(dt);
+    drawVignette();
+}
+
+// ---- Generate ----
+function generate() {
+    // Build random config
+    config.movement = pick(movementTypes);
+    config.shape = pick(shapeTypes);
+    config.paletteIndex = randInt(0, palettes.length - 1);
+    config.colors = [...palettes[config.paletteIndex].colors];
+    config.baseSize = rand(2.5, 7);
+    config.speed = rand(0.5, 1.8);
+    config.trail = rand(0.03, 0.18);
+    config.particleCount = randInt(80, 320);
+    config.waves = Math.random() > 0.5;
+    config.kaleidoscope = Math.random() > 0.6;
+    config.connections = Math.random() > 0.6;
+    config.symmetry = pick([3, 4, 5, 6, 8, 10, 12]);
+
+    // Sync UI controls to match
+    syncUI();
+    createParticles();
+
+    // Clear canvas and start fresh
+    drawBg();
+    addFlash(W / 2, H / 2);
+
+    const name = getPatternName();
+    document.getElementById('patternName').textContent = name;
+    showToast('Generated: ' + name);
+
+    // Button animation
+    const btn = document.getElementById('generateBtn');
+    btn.classList.add('spinning');
+    setTimeout(() => btn.classList.remove('spinning'), 400);
+}
+
+function syncUI() {
+    document.getElementById('speedSlider').value = config.speed;
+    document.getElementById('speedVal').textContent = config.speed.toFixed(1) + 'x';
+    document.getElementById('trailSlider').value = config.trail;
+    document.getElementById('trailVal').textContent = config.trail.toFixed(2);
+    document.getElementById('sizeSlider').value = config.baseSize;
+    document.getElementById('sizeVal').textContent = config.baseSize.toFixed(1);
+    document.getElementById('densitySlider').value = config.particleCount;
+    document.getElementById('densityVal').textContent = config.particleCount;
+    document.getElementById('waveToggle').checked = config.waves;
+    document.getElementById('kaleidoToggle').checked = config.kaleidoscope;
+    document.getElementById('connectToggle').checked = config.connections;
+    document.getElementById('symmetrySlider').value = config.symmetry;
+    document.getElementById('symmetryVal').textContent = config.symmetry;
+    document.getElementById('symmetryRow').style.display = config.kaleidoscope ? 'flex' : 'none';
+    updatePaletteUI();
+    updateShapeUI();
+}
+
+// ---- UI Setup ----
+function buildPaletteUI() {
+    const container = document.getElementById('paletteContainer');
+    container.innerHTML = '';
+    palettes.forEach((pal, idx) => {
+        const swatch = document.createElement('button');
+        swatch.className = 'palette-swatch' + (config.paletteIndex === idx ? ' active' : '');
+        swatch.dataset.index = idx;
+        swatch.setAttribute('aria-label', pal.name + ' palette');
+        swatch.title = pal.name;
+        pal.colors.forEach(c => {
+            const span = document.createElement('span');
+            span.style.background = c;
+            swatch.appendChild(span);
+        });
+        swatch.addEventListener('click', () => {
+            config.paletteIndex = idx;
+            config.colors = [...palettes[idx].colors];
+            particles.forEach(p => p.color = pick(config.colors));
+            updatePaletteUI();
+            showToast('Palette: ' + pal.name);
+        });
+        container.appendChild(swatch);
+    });
+}
+function updatePaletteUI() {
+    document.querySelectorAll('.palette-swatch').forEach((s, i) => {
+        s.classList.toggle('active', i === config.paletteIndex);
+    });
+}
+
+function buildShapeUI() {
+    const container = document.getElementById('shapeContainer');
+    container.innerHTML = '';
+    shapeTypes.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = 'shape-btn' + (config.shape === s ? ' active' : '');
+        btn.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+        btn.dataset.shape = s;
+        btn.addEventListener('click', () => {
+            config.shape = s;
+            particles.forEach(p => p.shape = s);
+            updateShapeUI();
+            updatePatternName();
+        });
+        container.appendChild(btn);
+    });
+}
+function updateShapeUI() {
+    document.querySelectorAll('.shape-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.shape === config.shape);
+    });
+}
+
+function updatePatternName() {
+    document.getElementById('patternName').textContent = getPatternName();
+}
+
+function wireUI() {
+    // Generate
+    document.getElementById('generateBtn').addEventListener('click', generate);
+
+    // Speed
+    const speedSlider = document.getElementById('speedSlider');
+    speedSlider.addEventListener('input', () => {
+        config.speed = parseFloat(speedSlider.value);
+        document.getElementById('speedVal').textContent = config.speed.toFixed(1) + 'x';
+    });
+
+    // Trail
+    const trailSlider = document.getElementById('trailSlider');
+    trailSlider.addEventListener('input', () => {
+        config.trail = parseFloat(trailSlider.value);
+        document.getElementById('trailVal').textContent = config.trail.toFixed(2);
+    });
+
+    // Size
+    const sizeSlider = document.getElementById('sizeSlider');
+    sizeSlider.addEventListener('input', () => {
+        config.baseSize = parseFloat(sizeSlider.value);
+        document.getElementById('sizeVal').textContent = config.baseSize.toFixed(1);
+        const sv = config.baseSize * 0.5;
+        particles.forEach(p => p.size = Math.max(1, config.baseSize + rand(-sv, sv)));
+    });
+
+    // Density
+    const densitySlider = document.getElementById('densitySlider');
+    densitySlider.addEventListener('input', () => {
+        config.particleCount = parseInt(densitySlider.value);
+        document.getElementById('densityVal').textContent = config.particleCount;
+        clearTimeout(densityTimeout);
+        densityTimeout = setTimeout(() => createParticles(), 250);
+    });
+
+    // Effect toggles
+    document.getElementById('waveToggle').addEventListener('change', e => {
+        config.waves = e.target.checked;
+        updatePatternName();
+    });
+    document.getElementById('kaleidoToggle').addEventListener('change', e => {
+        config.kaleidoscope = e.target.checked;
+        document.getElementById('symmetryRow').style.display = config.kaleidoscope ? 'flex' : 'none';
+        updatePatternName();
+    });
+    document.getElementById('connectToggle').addEventListener('change', e => {
+        config.connections = e.target.checked;
+        updatePatternName();
+    });
+
+    // Symmetry
+    const symSlider = document.getElementById('symmetrySlider');
+    symSlider.addEventListener('input', () => {
+        config.symmetry = parseInt(symSlider.value);
+        document.getElementById('symmetryVal').textContent = config.symmetry;
+        updatePatternName();
+    });
+
+    // Screenshot
+    document.getElementById('screenshotBtn').addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'pattern-forge-' + Date.now() + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('Screenshot saved');
+    });
+
+    // Fullscreen
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    // Panel toggle (mobile)
+    document.getElementById('panelToggle').addEventListener('click', () => {
+        document.getElementById('panel').classList.toggle('hidden');
+    });
+
+    // Mouse tracking
+    canvas.addEventListener('mousemove', e => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+    canvas.addEventListener('mouseleave', () => {
+        mouse.x = -9999; mouse.y = -9999;
+    });
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        mouse.x = e.touches[0].clientX;
+        mouse.y = e.touches[0].clientY;
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => {
+        mouse.x = -9999; mouse.y = -9999;
+    });
+
+    // Click to spawn burst
+    canvas.addEventListener('click', e => {
+        const count = randInt(8, 18);
+        for (let i = 0; i < count; i++) {
+            const p = createParticle();
+            p.x = e.clientX;
+            p.y = e.clientY;
+            p.vx = rand(-6, 6);
+            p.vy = rand(-6, 6);
+            p.size = Math.max(1, config.baseSize * rand(0.5, 1.5));
+            particles.push(p);
+        }
+        // Trim if too many
+        while (particles.length > config.particleCount + 80) particles.shift();
+        addFlash(e.clientX, e.clientY);
+    });
+
+    // Keyboard shortcut: Space to generate
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space' && e.target === document.body) {
+            e.preventDefault();
+            generate();
+        }
+    });
+}
+
+// ---- Resize ----
+function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    drawBg();
+}
+
+// ---- Init ----
+function init() {
+    canvas = document.getElementById('cv');
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Default config (before first generate)
+    config = {
+        movement: 'orbit',
+        shape: 'circle',
+        paletteIndex: 0,
+        colors: [...palettes[0].colors],
+        baseSize: 4,
+        speed: 1,
+        trail: 0.06,
+        particleCount: 160,
+        waves: false,
+        kaleidoscope: false,
+        connections: false,
+        symmetry: 6
+    };
+
+    buildPaletteUI();
+    buildShapeUI();
+    wireUI();
+
+    // Auto-generate on load
+    setTimeout(generate, 300);
+
+    animate();
+}
+
+init();
+</script>
+</body>
+</html>
